@@ -203,6 +203,11 @@ while true; do
     fi
 
     TMPOUT=$(mktemp)
+    # --no-retry is important: the OCI CLI's Python SDK has its own internal
+    # retry/backoff that is independent of --connection-timeout/--read-timeout.
+    # On a 500 it can silently loop on 429 "Too Many Requests" for minutes
+    # inside a single attempt, which makes RETRY_INTERVAL meaningless and looks
+    # like the script has hung. We do our own retrying, so disable the SDK's.
     oci compute instance launch \
         --compartment-id      "$COMPARTMENT_ID" \
         --availability-domain "$current_ad" \
@@ -215,6 +220,7 @@ while true; do
         --assign-public-ip    true \
         --connection-timeout  60 \
         --read-timeout        120 \
+        --no-retry \
         > "$TMPOUT" 2>&1 &
     oci_pid=$!
 

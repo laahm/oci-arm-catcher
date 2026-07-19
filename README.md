@@ -5,8 +5,10 @@ dependency-light poller that retries `oci compute instance launch` for the
 Always Free `VM.Standard.A1.Flex` shape until Oracle finally has capacity —
 then launches your instance and pings you.
 
-If you've ever tried to create a free 4 OCPU / 24 GB Ampere A1 instance and hit
-this, repeatedly, for days:
+![oci-arm-catcher in action](assets/demo.gif)
+
+If you've ever tried to create a free Ampere A1 instance and hit this,
+repeatedly, for days:
 
 ```
 ServiceError:
@@ -25,10 +27,16 @@ up.
 ## Why this exists
 
 Oracle's [Always Free tier](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm)
-gives every account **4 ARM OCPUs and 24 GB of RAM** on the Ampere A1 platform —
-genuinely free, forever, no trial clock. It's one of the best free compute deals
-anywhere: enough for a small Kubernetes node, a self-hosted app stack, a game
-server, or a personal VPN.
+gives every account **2 ARM OCPUs and 12 GB of RAM** on the Ampere A1 platform —
+genuinely free, forever, no trial clock. Still one of the best free compute deals
+anywhere: enough for a self-hosted app stack, a game server, or a personal VPN.
+
+> **Note (June 2026):** Oracle quietly halved the Always Free Ampere allowance
+> from 4 OCPU / 24 GB to **2 OCPU / 12 GB** (1,500 OCPU-hours + 9,000 GB-hours per
+> month) on 15 June 2026, with no announcement. Pay-as-you-go accounts have
+> reportedly kept the old 4 OCPU / 24 GB at no charge, but Oracle hasn't confirmed
+> that publicly — check your own billing before assuming. Set `OCPUS` /
+> `MEMORY_GB` in your `.env` to whatever your account actually allows.
 
 The catch: those ARM hosts are in heavy demand, so launching an instance very
 often fails with **"Out of host capacity"**. US regions can be dry for hours or
@@ -42,7 +50,8 @@ your region has them.
 
 It's a single script with no runtime dependencies beyond the official OCI CLI and
 Python 3 (which ships with macOS and virtually every Linux). It's been used in
-production to catch a 4 OCPU / 24 GB A1 instance on a real account.
+production to catch a 4 OCPU / 24 GB A1 instance on a real account (under the
+pre-June-2026 limits).
 
 ## Who it's for
 
@@ -160,8 +169,8 @@ ARM image ID, formatted so you can paste them straight into `.env`.
 | `AVAILABILITY_DOMAINS` | yes\* | — | Comma-separated ADs to **rotate** across; overrides the single one |
 | `SUBNET_ID` | yes | — | Public subnet OCID |
 | `IMAGE_ID` | yes | — | ARM image OCID |
-| `OCPUS` | yes | `4` | Always Free max is 4 total |
-| `MEMORY_GB` | yes | `24` | Always Free max is 24 total |
+| `OCPUS` | yes | `2` | Always Free max is 2 total (was 4 before 15 Jun 2026) |
+| `MEMORY_GB` | yes | `12` | Always Free max is 12 total (was 24 before 15 Jun 2026) |
 | `RETRY_INTERVAL` | no | `300` | Seconds between attempts |
 
 \* Set **either** `AVAILABILITY_DOMAIN` (one AD) **or** `AVAILABILITY_DOMAINS`
@@ -243,8 +252,19 @@ or mismatched OCID — double-check that `COMPARTMENT_ID`, `SUBNET_ID`, and
 `IMAGE_ID` all belong to the **same region** as your AD.
 
 **`LimitExceeded`**
-You've hit your Always Free allowance (4 OCPU / 24 GB total). Delete or shrink
-existing A1 instances, or lower `OCPUS`/`MEMORY_GB`.
+You've hit your Always Free allowance — **2 OCPU / 12 GB total** since 15 June
+2026 (it was 4 OCPU / 24 GB before). Delete or shrink existing A1 instances, or
+lower `OCPUS`/`MEMORY_GB`. This is not a capacity error, so the catcher stops
+instead of retrying.
+
+**It looks frozen — the spinner just keeps spinning**
+Older versions could appear to hang here. The OCI CLI's Python SDK has its own
+internal retry/backoff, independent of `--connection-timeout` / `--read-timeout`:
+after a `500` it can silently loop on `429 Too Many Requests` for minutes inside a
+single attempt, so `RETRY_INTERVAL` no longer reflects the real interval. The
+catcher now passes `--no-retry` and does its own retrying, which fixes this
+(thanks [@zearp](https://github.com/zearp), [#1](https://github.com/alexpua/oci-arm-catcher/issues/1)).
+If you're on an older copy, `git pull`.
 
 **The image won't boot / wrong architecture**
 Make sure `IMAGE_ID` is an **aarch64 / ARM** image. x86 images won't launch on

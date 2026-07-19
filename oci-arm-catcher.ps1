@@ -165,6 +165,10 @@ while ($true) {
         Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Attempt #$attempt"
     }
 
+    # --no-retry is important: the OCI CLI's Python SDK has its own internal
+    # retry/backoff independent of --connection-timeout/--read-timeout. On a 500
+    # it can silently loop on 429 "Too Many Requests" for minutes inside a single
+    # attempt, making RetryInterval meaningless and looking like a hang.
     $output = & oci compute instance launch `
         --compartment-id      $cfg['COMPARTMENT_ID'] `
         --availability-domain $currentAd `
@@ -176,7 +180,8 @@ while ($true) {
         --ssh-authorized-keys-file $cfg['SSH_KEY_FILE'] `
         --assign-public-ip    true `
         --connection-timeout  60 `
-        --read-timeout        120 2>&1 | Out-String
+        --read-timeout        120 `
+        --no-retry 2>&1 | Out-String
     $status = $LASTEXITCODE
 
     if ($status -eq 0) {

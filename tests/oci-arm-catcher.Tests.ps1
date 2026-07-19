@@ -42,8 +42,8 @@ SSH_KEY_FILE="$sshKey"
 AVAILABILITY_DOMAIN="Test:EU-AMSTERDAM-1-AD-1"
 SUBNET_ID="ocid1.subnet.oc1..test"
 IMAGE_ID="ocid1.image.oc1..test"
-OCPUS=4
-MEMORY_GB=24
+OCPUS=2
+MEMORY_GB=12
 RETRY_INTERVAL=1
 "@ | Set-Content -Path $EnvFile -Encoding UTF8
 }
